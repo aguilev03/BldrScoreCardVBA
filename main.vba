@@ -1,4 +1,20 @@
-Sub CountRowsByMonthAndOTIFAndOccupiedAndAverageAgeAndVacantAndColor()
+Option Explicit
+
+' === Helper: counts Mon–Fri between two dates (inclusive).
+'     Optionally pass a holidays range like wsBuilder.Range("AA2:AA50").
+Private Function BusinessDays(ByVal d1 As Date, ByVal d2 As Date, Optional holidays As Range = Nothing) As Long
+    If d1 > d2 Then
+        BusinessDays = 0
+        Exit Function
+    End If
+    If holidays Is Nothing Then
+        BusinessDays = Application.WorksheetFunction.NetworkDays(d1, d2)
+    Else
+        BusinessDays = Application.WorksheetFunction.NetworkDays(d1, d2, holidays)
+    End If
+End Function
+
+Public Sub CountRowsByMonthAndOTIFAndOccupiedAndAverageAgeAndVacantAndColor()
     Dim wsBuilder As Worksheet
     Dim wsFormatted As Worksheet
     Dim lastRow As Long
@@ -13,10 +29,16 @@ Sub CountRowsByMonthAndOTIFAndOccupiedAndAverageAgeAndVacantAndColor()
     
     Dim monthName As String
     Dim dateValue As Date
-    Dim key As Variant
     Dim averageAge As Double
     Dim ageValue As Variant
     Dim statusText As String
+    
+    ' --- Config: change if your columns differ ---
+    Const COL_START As String = "E"     ' Start date
+    Const COL_COMPLETED As String = "F" ' Completed date
+    Const WRITE_BACK_AGE As Boolean = True    ' write business-day age into column G
+    Const EXCLUSIVE_START As Boolean = False  ' True to subtract 1 day (exclude start)
+    'Dim holidayRange As Range ' (optional) set to your holidays range and pass it below
     
     ' Initialize dictionaries
     Set monthCounts = CreateObject("Scripting.Dictionary")
@@ -25,14 +47,6 @@ Sub CountRowsByMonthAndOTIFAndOccupiedAndAverageAgeAndVacantAndColor()
     Set monthOccupiedAges = CreateObject("Scripting.Dictionary")
     Set monthVacantCounts = CreateObject("Scripting.Dictionary")
     Set monthVacantAges = CreateObject("Scripting.Dictionary")
-    
-    Const COL_START As String = "E"     ' <-- CHANGE if your Start date column is different
-    Const COL_COMPLETED As String = "F" ' <-- CHANGE if your Completed date column is different
-
-    Const WRITE_BACK_AGE As Boolean = True ' write computed business days into column G
-    Const EXCLUSIVE_START As Boolean = False ' set True to subtract 1 day (exclusive of start date)
-
-    
     
     ' Set references to the worksheets
     On Error Resume Next
@@ -57,26 +71,12 @@ Sub CountRowsByMonthAndOTIFAndOccupiedAndAverageAgeAndVacantAndColor()
     wsFormatted.Cells.Clear
     
     ' Get the last row with data in column E of the "Builder Data" sheet
-    lastRow = wsBuilder.Cells(wsBuilder.Rows.Count, "E").End(xlUp).Row
-    
-    ' Counts Mon–Fri; optionally pass a holidays range
-    Private Function BusinessDays(ByVal d1 As Date, ByVal d2 As Date, Optional holidays As Range = Nothing) As Long
-        If d1 > d2 Then
-            BusinessDays = 0
-            Exit Function
-        End If
-        If holidays Is Nothing Then
-            BusinessDays = Application.WorksheetFunction.NetworkDays(d1, d2)
-        Else
-            BusinessDays = Application.WorksheetFunction.NetworkDays(d1, d2, holidays)
-        End If
-    End Function
-
+    lastRow = wsBuilder.Cells(wsBuilder.Rows.Count, COL_START).End(xlUp).Row
     
     ' Loop through each row to count and color
     For i = 2 To lastRow
-        If IsDate(wsBuilder.Cells(i, "E").Value) Then
-            dateValue = wsBuilder.Cells(i, "E").Value
+        If IsDate(wsBuilder.Cells(i, COL_START).Value) Then
+            dateValue = wsBuilder.Cells(i, COL_START).Value
             monthName = Format(dateValue, "mmmm")
             
             Dim startDate As Variant, endDate As Variant
@@ -85,6 +85,7 @@ Sub CountRowsByMonthAndOTIFAndOccupiedAndAverageAgeAndVacantAndColor()
             endDate = wsBuilder.Cells(i, COL_COMPLETED).Value
             
             If IsDate(startDate) And IsDate(endDate) Then
+                ' If you keep holidays, pass them: BusinessDays(CDate(startDate), CDate(endDate), holidayRange)
                 ageBiz = BusinessDays(CDate(startDate), CDate(endDate))
                 If EXCLUSIVE_START Then ageBiz = ageBiz - 1
                 If ageBiz < 0 Then ageBiz = 0
@@ -94,9 +95,10 @@ Sub CountRowsByMonthAndOTIFAndOccupiedAndAverageAgeAndVacantAndColor()
                 ' If one of the dates is missing or invalid, fall back to existing G or blank
                 ageValue = wsBuilder.Cells(i, "G").Value
             End If
+
             statusText = UCase$(Trim$(CStr(wsBuilder.Cells(i, "I").Value)))
             
-            ' ---- NEW: color by Status (I) + Age (G) thresholds ----
+            ' ---- Color by Status (I) + Age (G) thresholds ----
             If IsNumeric(ageValue) And Len(statusText) > 0 Then
                 Select Case statusText
                     Case "VACANT"
@@ -122,14 +124,10 @@ Sub CountRowsByMonthAndOTIFAndOccupiedAndAverageAgeAndVacantAndColor()
                                 wsBuilder.Rows(i).Interior.Pattern = xlNone
                         End Select
                     Case Else
-                        ' If status is neither Vacant nor Occupied, leave as-is (or clear fill if you prefer)
-                        ' wsBuilder.Rows(i).Interior.Pattern = xlNone
+                        ' leave as-is
                 End Select
-            Else
-                ' Non-numeric age or blank status: skip/clear if desired
-                ' wsBuilder.Rows(i).Interior.Pattern = xlNone
             End If
-            ' ---- END NEW COLOR BLOCK ----
+            ' ---- END color block ----
             
             ' Count months
             If monthCounts.Exists(monthName) Then
@@ -232,4 +230,4 @@ Sub CountRowsByMonthAndOTIFAndOccupiedAndAverageAgeAndVacantAndColor()
         
         rowIndex = rowIndex + 1
     Next m
-End Function
+End Sub
