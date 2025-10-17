@@ -114,7 +114,3 @@ This project is licensed under the **MIT License** — feel free to use and modi
 **Evan Aguilar**  
 💼 Flooring & Claims Specialist • 🧑‍💻 Tech Hobbyist • 📊 Excel Automation Enthusiast  
 GitHub: [@aguilev03](https://github.com/aguilev03)
-
----
-
-> *“Efficiency isn’t about doing more — it’s about doing it smarter.”*
